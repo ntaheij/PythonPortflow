@@ -23,6 +23,9 @@ GOAL_ORDER = [
     "Reflecteren"
 ]
 
+# Create lowercase version for case-insensitive matching
+GOAL_ORDER_LOWER = [g.lower() for g in GOAL_ORDER]
+
 # ------------------------
 # Helper functions
 # ------------------------
@@ -413,12 +416,13 @@ def collect_results(token, student_name, student_data, include_reviewer=False):
 # ------------------------
 
 def sort_goals(goals):
-    """Sort goals according to GOAL_ORDER, with unspecified goals at the end."""
+    """Sort goals according to GOAL_ORDER (case-insensitive), with unspecified goals at the end."""
     def sort_key(goal):
+        goal_lower = goal.lower()
         try:
-            return (0, GOAL_ORDER.index(goal))
+            return (0, GOAL_ORDER_LOWER.index(goal_lower))
         except ValueError:
-            return (1, goal)
+            return (1, goal_lower)
     return sorted(goals, key=sort_key)
 
 def export_csv_wide(results, include_reviewer=False):
