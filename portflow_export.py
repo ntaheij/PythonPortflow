@@ -189,6 +189,8 @@ def get_shared_collections(token):
         "user-agent": "Mozilla/5.0"
     }
 
+    print("Fetching shared collections...")
+
     all_items = []
     page = 1
 
@@ -218,6 +220,9 @@ def get_shared_collections(token):
 
         page += 1
 
+    print(f"Found {len(all_items)} shared collections.")
+
+
     return all_items
 
 def extract_students(shared_items):
@@ -246,6 +251,8 @@ def get_students_from_section(token, section_id):
         "user-agent": "Mozilla/5.0"
     }
 
+    print("Fetching students from section...")
+
     students = {}
     page = 1
 
@@ -271,21 +278,24 @@ def get_students_from_section(token, section_id):
 
         for student in page_students:
             name = student["name"]
-            portfolio_id = student["portfolio_id"]
-            share_type = student["share_type"]
+            portfolio_id = student.get("portfolio_id")
+            share_type = student.get("share_type")
 
             students.setdefault(name, {
                 "student_id": student["id"],
                 "portfolio_ids": set(),
-                "has_access": share_type is not None
+                "has_access": share_type is not None and share_type != "none"
             })
 
-            students[name]["portfolio_ids"].add(portfolio_id)
+            if portfolio_id:
+                students[name]["portfolio_ids"].add(portfolio_id)
 
         if len(page_students) < PER_PAGE:
             break
 
         page += 1
+
+    print(f"Found {len(students)} students.")
 
     return students
 
