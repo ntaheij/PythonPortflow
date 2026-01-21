@@ -1,6 +1,7 @@
 import requests
 import csv
 import time
+import sys
 
 BASE_URL = "https://portfolio.drieam.app/api/v1"
 PER_PAGE = 200
@@ -22,7 +23,6 @@ def request_with_retries(url, headers, params=None, max_attempts=3):
                 return "TOKEN_EXPIRED"
 
             if response.status_code == 404:
-                print(f"Skipping (no access)")
                 return "NOT_FOUND"
 
             response.raise_for_status()
@@ -31,11 +31,12 @@ def request_with_retries(url, headers, params=None, max_attempts=3):
         except requests.exceptions.RequestException as e:
             attempt += 1
             print(f"Request failed ({attempt}/{max_attempts}): {e}")
+
             if attempt < max_attempts:
                 print("Retrying in 5 seconds...")
                 time.sleep(5)
             else:
-                print("3 failed attempts. Waiting 60 seconds before continuing...")
+                print("3 failed attempts. Waiting 60 seconds...")
                 time.sleep(60)
                 return None
 
@@ -74,12 +75,31 @@ def get_shared_collections(token):
 
         all_items.extend(data)
 
-        if len(data) < 20:
+        if len(data) < PER_PAGE:
             break
 
         page += 1
 
     return all_items
+
+def extract_students(shared_items):
+    students = {}
+    for item in shared_items:
+        inviter = item.get("inviter")
+        if not inviter or inviter.get("current_role") != "student":
+            continue
+
+        name = inviter["name"]
+        portfolio_id = item["portfolio_id"]
+
+        students.setdefault(name, {
+            "student_id": inviter["id"],
+            "portfolio_ids": set()
+        })
+
+        students[name]["portfolio_ids"].add(portfolio_id)
+
+    return students
 
 def get_students_from_section(token, section_id):
     headers = {
@@ -114,11 +134,12 @@ def get_students_from_section(token, section_id):
         for student in page_students:
             name = student["name"]
             portfolio_id = student["portfolio_id"]
-            if name not in students:
-                students[name] = {
-                    "student_id": student["id"],
-                    "portfolio_ids": set()
-                }
+
+            students.setdefault(name, {
+                "student_id": student["id"],
+                "portfolio_ids": set()
+            })
+
             students[name]["portfolio_ids"].add(portfolio_id)
 
         if len(page_students) < PER_PAGE:
@@ -128,28 +149,8 @@ def get_students_from_section(token, section_id):
 
     return students
 
-def extract_students(shared_items):
-    students = {}
-    for item in shared_items:
-        inviter = item.get("inviter")
-        if not inviter or inviter.get("current_role") != "student":
-            continue
-
-        name = inviter["name"]
-        portfolio_id = item["portfolio_id"]
-
-        if name not in students:
-            students[name] = {
-                "student_id": inviter["id"],
-                "portfolio_ids": set()
-            }
-
-        students[name]["portfolio_ids"].add(portfolio_id)
-
-    return students
-
 # ------------------------
-# Portfolio & feedback fetching
+# Portfolio & feedback
 # ------------------------
 
 def get_goals(token, portfolio_id):
@@ -176,7 +177,6 @@ def get_feedback(token, portfolio_id, goal_id):
         )
 
         if response == "NOT_FOUND":
-            print(f"Skipping (no access)")
             return []
 
         if response is None:
@@ -248,7 +248,7 @@ def collect_results(token, student_name, student_data):
     return results
 
 # ------------------------
-# CSV Export (wide format, ; separator)
+# CSV Export (; separator)
 # ------------------------
 
 def export_csv_wide(results):
@@ -280,33 +280,36 @@ def export_csv_wide(results):
     print("CSV exported to results.csv")
 
 # ------------------------
-# Main loop (Ctrl+C safe)
+# Main program
 # ------------------------
 
 try:
-    while True:
-        token = get_bearer_token()
+    token = get_bearer_token()
 
+    while True:
+        # ---- Student fetch menu ----
         while True:
             print("\nChoose student fetching method:")
             print("1) All students with shared collection")
             print("2) Students from section (coachingsdashboard)")
-            fetch_choice = input("Enter 1 or 2 (or 'q' to quit): ").strip()
+            print("q) Quit")
 
-            if fetch_choice.lower() == "q":
+            fetch_choice = input("Choice: ").strip().lower()
+
+            if fetch_choice == "q":
                 print("Exiting gracefully. Goodbye!")
-                exit()
+                sys.exit(0)
 
             if fetch_choice == "1":
-                shared_items = get_shared_collections(token)
-                if shared_items == "TOKEN_EXPIRED":
+                shared = get_shared_collections(token)
+                if shared == "TOKEN_EXPIRED":
                     print("Token expired, please enter a new one.")
                     token = get_bearer_token()
                     continue
-                students = extract_students(shared_items)
+                students = extract_students(shared)
                 break
 
-            elif fetch_choice == "2":
+            if fetch_choice == "2":
                 section_id = input("Enter section_id: ").strip()
                 students = get_students_from_section(token, section_id)
                 if students == "TOKEN_EXPIRED":
@@ -315,8 +318,7 @@ try:
                     continue
                 break
 
-            else:
-                print("Invalid option, try again.")
+            print("Invalid option.")
 
         if not students:
             print("No students found.")
@@ -326,13 +328,15 @@ try:
         for name in students:
             print(f"- {name}")
 
-        print("\nChoose output option:")
+        # ---- Output menu ----
+        print("\nChoose output:")
         print("1) Single student")
-        print("2) All students (export to CSV)")
+        print("2) All students (CSV)")
+        print("m) Main menu")
 
-        choice = input("Enter 1 or 2 (or 'm' for main menu): ").strip()
+        choice = input("Choice: ").strip().lower()
 
-        if choice.lower() == "m":
+        if choice == "m":
             continue
 
         if choice == "1":
@@ -343,7 +347,8 @@ try:
 
             results = collect_results(token, name, students[name])
             if results == "TOKEN_EXPIRED":
-                print("Token expired, returning to main menu.")
+                print("Token expired, please enter a new one.")
+                token = get_bearer_token()
                 continue
 
             print(f"\n{name}")
@@ -360,15 +365,16 @@ try:
                 print(f"Processing {name}...")
                 res = collect_results(token, name, data)
                 if res == "TOKEN_EXPIRED":
-                    print("Token expired, returning to main menu.")
+                    print("Token expired, please enter a new one.")
+                    token = get_bearer_token()
                     break
                 all_results.extend(res)
             else:
                 export_csv_wide(all_results)
 
         else:
-            print("Invalid option, returning to main menu.")
+            print("Invalid option.")
 
 except KeyboardInterrupt:
-    print("\nKeyboard interrupt detected. Exiting gracefully. Goodbye!")
-    exit()
+    print("\nInterrupted. Exiting gracefully. Goodbye!")
+    sys.exit(0)
