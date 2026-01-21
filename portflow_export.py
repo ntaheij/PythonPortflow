@@ -6,6 +6,9 @@ import sys
 BASE_URL = "https://portfolio.drieam.app/api/v1"
 PER_PAGE = 200
 
+# Session cache
+sections_cache = None
+
 # Desired goal order
 GOAL_ORDER = [
     "Overzicht creëren",
@@ -27,8 +30,14 @@ GOAL_ORDER = [
 def get_bearer_token():
     return input("Enter Bearer token: ").strip()
 
-def get_all_sections(token):
+def get_all_sections(token, use_cache=True):
     """Fetch all sections from the API with pagination."""
+    global sections_cache
+    
+    if use_cache and sections_cache is not None:
+        print("Using cached sections...")
+        return sections_cache
+    
     headers = {
         "accept": "*/*",
         "authorization": f"Bearer {token}",
@@ -64,6 +73,7 @@ def get_all_sections(token):
         page += 1
     
     print(f"Found {len(all_sections)} sections.")
+    sections_cache = all_sections
     return all_sections
 
 def categorize_sections(sections):
@@ -91,7 +101,7 @@ def categorize_sections(sections):
 
 def select_section(token):
     """Display section categories and let user select a specific section."""
-    sections = get_all_sections(token)
+    sections = get_all_sections(token, use_cache=True)
     
     if sections == "TOKEN_EXPIRED":
         return "TOKEN_EXPIRED"
@@ -262,10 +272,12 @@ def get_students_from_section(token, section_id):
         for student in page_students:
             name = student["name"]
             portfolio_id = student["portfolio_id"]
+            share_type = student["share_type"]
 
             students.setdefault(name, {
                 "student_id": student["id"],
-                "portfolio_ids": set()
+                "portfolio_ids": set(),
+                "has_access": share_type is not None
             })
 
             students[name]["portfolio_ids"].add(portfolio_id)
@@ -339,8 +351,13 @@ def collect_results(token, student_name, student_data, include_reviewer=False):
 
     for portfolio_id in student_data["portfolio_ids"]:
         goals = get_goals(token, portfolio_id)
-        if goals in (None, "TOKEN_EXPIRED", "NOT_FOUND"):
+        
+        if goals == "TOKEN_EXPIRED":
             return "TOKEN_EXPIRED"
+        
+        if goals in (None, "NOT_FOUND"):
+            print(f"  Warning: Cannot access evaluations for {student_name} (no permission or not found)")
+            continue
         
         if not goals:
             continue
@@ -454,6 +471,9 @@ try:
                     print("Token expired, please enter a new one.")
                     token = get_bearer_token()
                     continue
+                if shared is None:
+                    print("Failed to fetch shared collections. Please try again.")
+                    continue
                 students = extract_students(shared)
                 break
 
@@ -470,6 +490,9 @@ try:
                     print("Token expired, please enter a new one.")
                     token = get_bearer_token()
                     continue
+                if students is None:
+                    print("Failed to fetch students. Please try again.")
+                    continue
                 break
 
             if fetch_choice == "3":
@@ -479,6 +502,9 @@ try:
                     print("Token expired, please enter a new one.")
                     token = get_bearer_token()
                     continue
+                if students is None:
+                    print("Failed to fetch students. Please try again.")
+                    continue
                 break
 
             print("Invalid option.")
@@ -487,9 +513,12 @@ try:
             print("No students found.")
             continue
 
-        print("\nStudents:")
-        for name in students:
-            print(f"- {name}")
+        print(f"\nFound {len(students)} students:")
+        for name in sorted(students.keys()):
+            if "has_access" in students[name] and not students[name]["has_access"]:
+                print(f"- {name} (Geen Toegang)")
+            else:
+                print(f"- {name}")
 
         # ---- Output menu ----
         print("\nChoose output:")
@@ -520,6 +549,10 @@ try:
                 token = get_bearer_token()
                 continue
 
+            if not results:
+                print(f"\nNo evaluations found for {name}")
+                continue
+
             print(f"\n{name}")
             goals = {}
             for r in results:
@@ -542,16 +575,24 @@ try:
             include_reviewer = reviewer_choice == "1"
 
             all_results = []
+            total = len(students)
+            processed = 0
+            
             for name, data in students.items():
-                print(f"Processing {name}...")
+                processed += 1
+                print(f"Processing {name}... ({processed}/{total})")
                 res = collect_results(token, name, data, include_reviewer)
                 if res == "TOKEN_EXPIRED":
                     print("Token expired, please enter a new one.")
                     token = get_bearer_token()
                     break
-                all_results.extend(res)
+                if res:
+                    all_results.extend(res)
             else:
-                export_csv_wide(all_results, include_reviewer)
+                if all_results:
+                    export_csv_wide(all_results, include_reviewer)
+                else:
+                    print("\nNo evaluation data found for any student.")
 
         else:
             print("Invalid option.")
