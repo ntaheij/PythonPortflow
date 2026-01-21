@@ -2,6 +2,8 @@ import requests
 import csv
 import time
 import sys
+import json
+from pathlib import Path
 
 BASE_URL = "https://portfolio.drieam.app/api/v1"
 PER_PAGE = 200
@@ -20,12 +22,74 @@ GOAL_ORDER = [
     "Reflecteren"
 ]
 
+# Predefined sections - loaded from file
+def load_sections():
+    """Load sections from sections.json file."""
+    sections_file = Path("sections.json")
+    if not sections_file.exists():
+        print("Warning: sections.json not found. Predefined sections unavailable.")
+        return {}
+    
+    try:
+        with open(sections_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading sections.json: {e}")
+        return {}
+
+SECTIONS = load_sections()
+
 # ------------------------
 # Helper functions
 # ------------------------
 
 def get_bearer_token():
     return input("Enter Bearer token: ").strip()
+
+def select_section():
+    """Display section categories and let user select a specific section."""
+    if not SECTIONS:
+        print("No predefined sections available.")
+        return None
+    
+    print("\nSelect category:")
+    categories = list(SECTIONS.keys())
+    for idx, category in enumerate(categories, 1):
+        print(f"{idx}) {category}")
+    print("b) Back")
+    
+    while True:
+        cat_choice = input("Choice: ").strip().lower()
+        
+        if cat_choice == "b":
+            return None
+        
+        if cat_choice.isdigit():
+            cat_idx = int(cat_choice) - 1
+            if 0 <= cat_idx < len(categories):
+                category = categories[cat_idx]
+                break
+        
+        print("Invalid option.")
+    
+    sections = SECTIONS[category]
+    print(f"\nSelect section from {category}:")
+    for idx, section in enumerate(sections, 1):
+        print(f"{idx}) {section['name']}")
+    print("b) Back")
+    
+    while True:
+        sec_choice = input("Choice: ").strip().lower()
+        
+        if sec_choice == "b":
+            return None
+        
+        if sec_choice.isdigit():
+            sec_idx = int(sec_choice) - 1
+            if 0 <= sec_idx < len(sections):
+                return sections[sec_idx]["id"]
+        
+        print("Invalid option.")
 
 def request_with_retries(url, headers, params=None, max_attempts=3):
     attempt = 0
@@ -324,7 +388,8 @@ try:
         while True:
             print("\nChoose student fetching method:")
             print("1) All students with shared collection")
-            print("2) Students from section (coachingsdashboard)")
+            print("2) Students from predefined section")
+            print("3) Students from custom section ID")
             print("q) Quit")
 
             fetch_choice = input("Choice: ").strip().lower()
@@ -343,6 +408,17 @@ try:
                 break
 
             if fetch_choice == "2":
+                section_id = select_section()
+                if section_id is None:
+                    continue
+                students = get_students_from_section(token, section_id)
+                if students == "TOKEN_EXPIRED":
+                    print("Token expired, please enter a new one.")
+                    token = get_bearer_token()
+                    continue
+                break
+
+            if fetch_choice == "3":
                 section_id = input("Enter section_id: ").strip()
                 students = get_students_from_section(token, section_id)
                 if students == "TOKEN_EXPIRED":

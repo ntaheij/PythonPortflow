@@ -3,3 +3,5 @@ build
 venv
 dev
 *.spec
+*.exe
+sections.json

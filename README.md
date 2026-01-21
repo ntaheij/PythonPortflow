@@ -44,7 +44,9 @@ Je kunt kiezen tussen:
 
 1) Alle studenten met gedeelde collectie
 
-2) Studenten uit een specifieke sectie (je vult dan section_id in, terug te vinden in de requests van Portflow op het coachingdashboard)
+2) Studenten uit een voorgedefineerde sectie. **LET OP**: Om privacy redenen is deze file niet op GitHub beschikbaar. Vraag deze aan bij Noah Taheij.
+ 
+3) Studenten uit een custom sectie (je vult dan section_id in, terug te vinden in de requests van Portflow op het coachingdashboard)
 
 ### Output kiezen
 
