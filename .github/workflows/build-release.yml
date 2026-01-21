@@ -1,0 +1,62 @@
+name: Build and Release EXE
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build EXE
+        run: pyinstaller --onefile --name "PortflowExport" --icon=NONE portflow_export.py
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PortflowExport
+          path: dist/PortflowExport.exe
+
+      - name: Set release variables
+        id: vars
+        shell: pwsh
+        run: |
+          echo "tag=v0.0.$env:GITHUB_RUN_NUMBER" >> $env:GITHUB_OUTPUT
+          echo "name=PortflowExport v0.0.$env:GITHUB_RUN_NUMBER" >> $env:GITHUB_OUTPUT
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          release_name: ${{ steps.vars.outputs.name }}
+          draft: false
+          prerelease: false
+
+      - name: Upload EXE to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/PortflowExport.exe
+          asset_name: PortflowExport.exe
+          asset_content_type: application/octet-stream
