@@ -223,7 +223,7 @@ def resolve_level(evaluation):
 
     return None
 
-def collect_results(token, student_name, student_data):
+def collect_results(token, student_name, student_data, include_reviewer=False):
     results = []
 
     for portfolio_id in student_data["portfolio_ids"]:
@@ -253,11 +253,17 @@ def collect_results(token, student_name, student_data):
                 if level is None:
                     continue
 
-                results.append({
+                result = {
                     "student_name": student_name,
                     "goal_name": goal_name,
                     "evaluation": level
-                })
+                }
+
+                if include_reviewer:
+                    reviewer = evaluation.get("reviewer", {})
+                    result["reviewer_name"] = reviewer.get("name", "Unknown")
+
+                results.append(result)
 
     return results
 
@@ -274,7 +280,7 @@ def sort_goals(goals):
             return (1, goal)
     return sorted(goals, key=sort_key)
 
-def export_csv_wide(results):
+def export_csv_wide(results, include_reviewer=False):
     if not results:
         print("No data to export.")
         return
@@ -288,10 +294,14 @@ def export_csv_wide(results):
 
         students.setdefault(s, {goal: "" for goal in all_goals})
 
+        eval_str = r["evaluation"]
+        if include_reviewer:
+            eval_str += f" ({r['reviewer_name']})"
+
         if students[s][g]:
-            students[s][g] += f", {r['evaluation']}"
+            students[s][g] += f", {eval_str}"
         else:
-            students[s][g] = r["evaluation"]
+            students[s][g] = eval_str
 
     with open("results.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, delimiter=";")
@@ -368,7 +378,13 @@ try:
                 print("Student not found.")
                 continue
 
-            results = collect_results(token, name, students[name])
+            print("\nInclude reviewer names?")
+            print("1) Yes")
+            print("2) No")
+            reviewer_choice = input("Choice: ").strip()
+            include_reviewer = reviewer_choice == "1"
+
+            results = collect_results(token, name, students[name], include_reviewer)
             if results == "TOKEN_EXPIRED":
                 print("Token expired, please enter a new one.")
                 token = get_bearer_token()
@@ -377,24 +393,35 @@ try:
             print(f"\n{name}")
             goals = {}
             for r in results:
-                goals.setdefault(r["goal_name"], []).append(r["evaluation"])
+                goal = r["goal_name"]
+                if include_reviewer:
+                    eval_str = f"{r['evaluation']} ({r['reviewer_name']})"
+                else:
+                    eval_str = r["evaluation"]
+                goals.setdefault(goal, []).append(eval_str)
 
             sorted_goals = sort_goals(goals.keys())
             for goal in sorted_goals:
                 print(f"{goal}: {', '.join(goals[goal])}")
 
         elif choice == "2":
+            print("\nInclude reviewer names?")
+            print("1) Yes")
+            print("2) No")
+            reviewer_choice = input("Choice: ").strip()
+            include_reviewer = reviewer_choice == "1"
+
             all_results = []
             for name, data in students.items():
                 print(f"Processing {name}...")
-                res = collect_results(token, name, data)
+                res = collect_results(token, name, data, include_reviewer)
                 if res == "TOKEN_EXPIRED":
                     print("Token expired, please enter a new one.")
                     token = get_bearer_token()
                     break
                 all_results.extend(res)
             else:
-                export_csv_wide(all_results)
+                export_csv_wide(all_results, include_reviewer)
 
         else:
             print("Invalid option.")
