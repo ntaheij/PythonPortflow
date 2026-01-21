@@ -2,8 +2,6 @@ import requests
 import csv
 import time
 import sys
-import json
-from pathlib import Path
 
 BASE_URL = "https://portfolio.drieam.app/api/v1"
 PER_PAGE = 200
@@ -22,23 +20,6 @@ GOAL_ORDER = [
     "Reflecteren"
 ]
 
-# Predefined sections - loaded from file
-def load_sections():
-    """Load sections from sections.json file."""
-    sections_file = Path("sections.json")
-    if not sections_file.exists():
-        print("Warning: sections.json not found. Predefined sections unavailable.")
-        return {}
-    
-    try:
-        with open(sections_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Error loading sections.json: {e}")
-        return {}
-
-SECTIONS = load_sections()
-
 # ------------------------
 # Helper functions
 # ------------------------
@@ -46,16 +27,89 @@ SECTIONS = load_sections()
 def get_bearer_token():
     return input("Enter Bearer token: ").strip()
 
-def select_section():
+def get_all_sections(token):
+    """Fetch all sections from the API with pagination."""
+    headers = {
+        "accept": "*/*",
+        "authorization": f"Bearer {token}",
+        "user-agent": "Mozilla/5.0"
+    }
+    
+    all_sections = []
+    page = 1
+    
+    print("Fetching sections...")
+    
+    while True:
+        response = request_with_retries(
+            f"{BASE_URL}/lms/sections",
+            headers,
+            params={"page": page}
+        )
+        
+        if response == "TOKEN_EXPIRED":
+            return "TOKEN_EXPIRED"
+        
+        if response is None:
+            print("Failed to fetch sections.")
+            return None
+        
+        data = response.json()
+        
+        if not data:
+            break
+        
+        all_sections.extend(data)
+        
+        # If we got less than a full page, we're done
+        if len(data) < 10:  # API default per page appears to be 10
+            break
+        
+        page += 1
+    
+    print(f"Found {len(all_sections)} sections.")
+    return all_sections
+
+def categorize_sections(sections):
+    """Organize sections into categories (Coaches, Gildes, Misc)."""
+    categories = {
+        "Coaches": [],
+        "Gildes": [],
+        "Misc": []
+    }
+    
+    for section in sections:
+        name = section["name"]
+        if name.startswith("Coach "):
+            categories["Coaches"].append(section)
+        elif name.startswith("Gilde "):
+            categories["Gildes"].append(section)
+        else:
+            categories["Misc"].append(section)
+    
+    # Sort each category by name
+    for category in categories.values():
+        category.sort(key=lambda x: x["name"])
+    
+    return categories
+
+def select_section(token):
     """Display section categories and let user select a specific section."""
-    if not SECTIONS:
-        print("No predefined sections available.")
+    sections = get_all_sections(token)
+    
+    if sections == "TOKEN_EXPIRED":
+        return "TOKEN_EXPIRED"
+    
+    if not sections:
+        print("No sections available.")
         return None
     
+    categories = categorize_sections(sections)
+    
     print("\nSelect category:")
-    categories = list(SECTIONS.keys())
-    for idx, category in enumerate(categories, 1):
-        print(f"{idx}) {category}")
+    category_names = [name for name, items in categories.items() if items]
+    for idx, category in enumerate(category_names, 1):
+        print(f"{idx}) {category} ({len(categories[category])} sections)")
     print("b) Back")
     
     while True:
@@ -66,15 +120,15 @@ def select_section():
         
         if cat_choice.isdigit():
             cat_idx = int(cat_choice) - 1
-            if 0 <= cat_idx < len(categories):
-                category = categories[cat_idx]
+            if 0 <= cat_idx < len(category_names):
+                category = category_names[cat_idx]
                 break
         
         print("Invalid option.")
     
-    sections = SECTIONS[category]
+    section_list = categories[category]
     print(f"\nSelect section from {category}:")
-    for idx, section in enumerate(sections, 1):
+    for idx, section in enumerate(section_list, 1):
         print(f"{idx}) {section['name']}")
     print("b) Back")
     
@@ -86,8 +140,8 @@ def select_section():
         
         if sec_choice.isdigit():
             sec_idx = int(sec_choice) - 1
-            if 0 <= sec_idx < len(sections):
-                return sections[sec_idx]["id"]
+            if 0 <= sec_idx < len(section_list):
+                return section_list[sec_idx]["id"]
         
         print("Invalid option.")
 
@@ -388,7 +442,7 @@ try:
         while True:
             print("\nChoose student fetching method:")
             print("1) All students with shared collection")
-            print("2) Students from predefined section")
+            print("2) Students from section (fetched from API)")
             print("3) Students from custom section ID")
             print("q) Quit")
 
@@ -408,7 +462,11 @@ try:
                 break
 
             if fetch_choice == "2":
-                section_id = select_section()
+                section_id = select_section(token)
+                if section_id == "TOKEN_EXPIRED":
+                    print("Token expired, please enter a new one.")
+                    token = get_bearer_token()
+                    continue
                 if section_id is None:
                     continue
                 students = get_students_from_section(token, section_id)
