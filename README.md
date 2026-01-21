@@ -8,16 +8,25 @@ Dit Python-script haalt evaluaties en feedback op van studenten uit Portflow en 
 
 1. [Open Portflow](https://canvas.hu.nl/accounts/1/external_tools/1134) via Canvas in de browser.  
 2. Rechtsklik op de pagina en kies **Inspect**.  
+
 ![Photo if inspect when right-clicking](img/inspect.png)
+
 3. Ga naar het tabblad **Network** (Netwerk).  
+
 ![Photo of network tab selected in Inspect window](img/networktab.png)
+
 4. Navigeer naar een andere pagina in Portflow, bijvoorbeeld **Evaluatieverzoeken**.  
 5. Zoek in de lijst met requests een request met woorden zoals `dashboard`, `sections`, `current`, `received`, etc. (geen .css, .js, etc bestanden)
+
 ![Requests](img/requests.png)
+
 6. Klik op dit request en scroll naar **Request Headers**.  
 7. Zoek de regel **Authorization** en kopieer alles wat achter `Bearer ` staat (begint meestal met `eyJ...`).  
    - Dit is je Bearer-token dat het script nodig heeft om verbinding te maken met Portflow. 
-![alt text](img/bearer.png) 
+
+![Bearer example](img/bearer.png) 
+
+8. Gebruik deze Bearer token in het script.
 
 ---
 
