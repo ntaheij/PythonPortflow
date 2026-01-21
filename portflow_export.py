@@ -6,6 +6,20 @@ import sys
 BASE_URL = "https://portfolio.drieam.app/api/v1"
 PER_PAGE = 200
 
+# Desired goal order
+GOAL_ORDER = [
+    "Overzicht creëren",
+    "Kritisch Oordelen",
+    "Juiste Kennis Ontwikkelen",
+    "Kwalitatief Product Maken",
+    "Plannen",
+    "Boodschap delen",
+    "Samenwerken",
+    "Flexibel opstellen",
+    "Pro-actief handelen",
+    "Reflecteren"
+]
+
 # ------------------------
 # Helper functions
 # ------------------------
@@ -251,12 +265,21 @@ def collect_results(token, student_name, student_data):
 # CSV Export (; separator)
 # ------------------------
 
+def sort_goals(goals):
+    """Sort goals according to GOAL_ORDER, with unspecified goals at the end."""
+    def sort_key(goal):
+        try:
+            return (0, GOAL_ORDER.index(goal))
+        except ValueError:
+            return (1, goal)
+    return sorted(goals, key=sort_key)
+
 def export_csv_wide(results):
     if not results:
         print("No data to export.")
         return
 
-    all_goals = sorted(set(r["goal_name"] for r in results))
+    all_goals = sort_goals(set(r["goal_name"] for r in results))
     students = {}
 
     for r in results:
@@ -356,8 +379,9 @@ try:
             for r in results:
                 goals.setdefault(r["goal_name"], []).append(r["evaluation"])
 
-            for goal, evals in goals.items():
-                print(f"{goal}: {', '.join(evals)}")
+            sorted_goals = sort_goals(goals.keys())
+            for goal in sorted_goals:
+                print(f"{goal}: {', '.join(goals[goal])}")
 
         elif choice == "2":
             all_results = []
