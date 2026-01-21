@@ -47,12 +47,8 @@ def get_all_sections(token):
             params={"page": page}
         )
         
-        if response == "TOKEN_EXPIRED":
-            return "TOKEN_EXPIRED"
-        
-        if response is None:
-            print("Failed to fetch sections.")
-            return None
+        if response in (None, "TOKEN_EXPIRED", "NOT_FOUND"):
+            return response
         
         data = response.json()
         
@@ -198,7 +194,7 @@ def get_shared_collections(token):
             }
         )
 
-        if response in (None, "TOKEN_EXPIRED"):
+        if response in (None, "TOKEN_EXPIRED", "NOT_FOUND"):
             return response
 
         data = response.json()
@@ -254,7 +250,7 @@ def get_students_from_section(token, section_id):
             }
         )
 
-        if response in (None, "TOKEN_EXPIRED"):
+        if response in (None, "TOKEN_EXPIRED", "NOT_FOUND"):
             return response
 
         data = response.json()
@@ -292,7 +288,7 @@ def get_goals(token, portfolio_id):
         headers,
         params={"page": 1, "per_page": PER_PAGE}
     )
-    if response in (None, "TOKEN_EXPIRED"):
+    if response in (None, "TOKEN_EXPIRED", "NOT_FOUND"):
         return response
     return response.json()
 
@@ -311,10 +307,7 @@ def get_feedback(token, portfolio_id, goal_id):
         if response == "NOT_FOUND":
             return []
 
-        if response is None:
-            break
-
-        if response == "TOKEN_EXPIRED":
+        if response in (None, "TOKEN_EXPIRED"):
             return "TOKEN_EXPIRED"
 
         data = response.json()
@@ -346,8 +339,11 @@ def collect_results(token, student_name, student_data, include_reviewer=False):
 
     for portfolio_id in student_data["portfolio_ids"]:
         goals = get_goals(token, portfolio_id)
-        if goals == "TOKEN_EXPIRED":
+        if goals in (None, "TOKEN_EXPIRED", "NOT_FOUND"):
             return "TOKEN_EXPIRED"
+        
+        if not goals:
+            continue
 
         for goal in goals:
             goal_id = goal["id"]
