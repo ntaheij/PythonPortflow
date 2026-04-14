@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib
 from typing import Dict, List, Optional, Tuple
 
 from . import api
@@ -9,9 +10,8 @@ from .time_range import TimeRange, range_between_dates, range_last_days, range_s
 
 def _try_questionary():
     try:
-        import questionary  # type: ignore
-
-        return questionary
+        # Dynamic import so the minimal PyInstaller build does not bundle TUI deps.
+        return importlib.import_module("questionary")
     except Exception:
         return None
 

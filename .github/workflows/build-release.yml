@@ -24,12 +24,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build EXE
+      - name: Build EXE (minimal)
         run: pyinstaller --onefile --name "PortflowExport" --icon=NONE portflow_export.py
 
-      - name: Zip EXE
+      - name: Install TUI dependencies
+        run: |
+          pip install -r requirements-tui.txt
+
+      - name: Build EXE (TUI)
+        run: pyinstaller --onefile --name "PortflowExport_TUI" --icon=NONE --hidden-import questionary --hidden-import prompt_toolkit --hidden-import wcwidth portflow_export.py
+
+      - name: Zip EXEs
         shell: pwsh
-        run: Compress-Archive -Path dist/PortflowExport.exe -DestinationPath dist/PortflowExport.zip -Force
+        run: |
+          Compress-Archive -Path dist/PortflowExport.exe -DestinationPath dist/PortflowExport.zip -Force
+          Compress-Archive -Path dist/PortflowExport_TUI.exe -DestinationPath dist/PortflowExport_TUI.zip -Force
 
       - name: Upload build artifact (EXE)
         uses: actions/upload-artifact@v4
@@ -42,6 +51,18 @@ jobs:
         with:
           name: PortflowExport-zip
           path: dist/PortflowExport.zip
+
+      - name: Upload build artifact (EXE, TUI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PortflowExport_TUI
+          path: dist/PortflowExport_TUI.exe
+
+      - name: Upload build artifact (ZIP, TUI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PortflowExport_TUI-zip
+          path: dist/PortflowExport_TUI.zip
 
       - name: Set release variables
         id: vars
@@ -71,6 +92,16 @@ jobs:
           asset_name: PortflowExport.exe
           asset_content_type: application/octet-stream
 
+      - name: Upload EXE (TUI) to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/PortflowExport_TUI.exe
+          asset_name: PortflowExport_TUI.exe
+          asset_content_type: application/octet-stream
+
       - name: Upload ZIP to release
         uses: actions/upload-release-asset@v1
         env:
@@ -79,4 +110,14 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/PortflowExport.zip
           asset_name: PortflowExport.zip
+          asset_content_type: application/zip
+
+      - name: Upload ZIP (TUI) to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/PortflowExport_TUI.zip
+          asset_name: PortflowExport_TUI.zip
           asset_content_type: application/zip
