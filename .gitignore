@@ -4,3 +4,4 @@ venv
 dev
 *.spec
 *.exe
+__pycache__
