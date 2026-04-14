@@ -10,6 +10,23 @@ from .time_range import TimeRange, range_between_dates, range_last_days, range_s
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("--token", type=str, default=None, help="Bearer token (optional).")
+    parser.add_argument(
+        "--token-file",
+        type=str,
+        default=None,
+        help=r"Path to a cached token file (optional). Defaults to %%APPDATA%%\PortflowExport\token.txt.",
+    )
+    parser.add_argument(
+        "--save-token",
+        action="store_true",
+        help="Save the provided/prompted token to the token file for next runs.",
+    )
+    parser.add_argument(
+        "--no-env-token",
+        action="store_true",
+        help="Do not read token from PORTFLOW_BEARER_TOKEN environment variable.",
+    )
     parser.add_argument(
         "--time-range",
         choices=["prompt", "all", "last", "between", "since"],
@@ -52,7 +69,14 @@ def run(argv: Optional[list[str]] = None) -> int:
         print(f"Invalid time range arguments: {e}")
         return 2
 
-    token = cli.prompt_token()
+    print("\nTip: copy a request as cURL in your browser and paste it when prompted.\n")
+
+    token = cli.prompt_token(
+        provided_token=args.token,
+        allow_env=not args.no_env_token,
+        token_file=args.token_file,
+        save=args.save_token,
+    )
 
     while True:
         method_label = cli.choose_student_fetch_method()
@@ -73,7 +97,12 @@ def run(argv: Optional[list[str]] = None) -> int:
             shared = api.get_shared_collections(token)
             if shared == api.TokenExpired:
                 print("Token expired, please enter a new one.")
-                token = cli.prompt_token()
+                token = cli.prompt_token(
+                    provided_token=args.token,
+                    allow_env=not args.no_env_token,
+                    token_file=args.token_file,
+                    save=args.save_token,
+                )
                 continue
             if shared is None:
                 print("Failed to fetch shared collections. Please try again.")
@@ -84,14 +113,24 @@ def run(argv: Optional[list[str]] = None) -> int:
             section_id = cli.select_section_id(token)
             if section_id == api.TokenExpired:
                 print("Token expired, please enter a new one.")
-                token = cli.prompt_token()
+                token = cli.prompt_token(
+                    provided_token=args.token,
+                    allow_env=not args.no_env_token,
+                    token_file=args.token_file,
+                    save=args.save_token,
+                )
                 continue
             if section_id is None:
                 continue
             students = api.get_students_from_section(token, section_id)
             if students == api.TokenExpired:
                 print("Token expired, please enter a new one.")
-                token = cli.prompt_token()
+                token = cli.prompt_token(
+                    provided_token=args.token,
+                    allow_env=not args.no_env_token,
+                    token_file=args.token_file,
+                    save=args.save_token,
+                )
                 continue
             if students is None:
                 print("Failed to fetch students. Please try again.")
@@ -102,7 +141,12 @@ def run(argv: Optional[list[str]] = None) -> int:
             students = api.get_students_from_section(token, section_id)
             if students == api.TokenExpired:
                 print("Token expired, please enter a new one.")
-                token = cli.prompt_token()
+                token = cli.prompt_token(
+                    provided_token=args.token,
+                    allow_env=not args.no_env_token,
+                    token_file=args.token_file,
+                    save=args.save_token,
+                )
                 continue
             if students is None:
                 print("Failed to fetch students. Please try again.")
@@ -140,7 +184,12 @@ def run(argv: Optional[list[str]] = None) -> int:
             results = logic.collect_results(token, name, students[name], include_reviewer, time_range)
             if results == api.TokenExpired:
                 print("Token expired, please enter a new one.")
-                token = cli.prompt_token()
+                token = cli.prompt_token(
+                    provided_token=args.token,
+                    allow_env=not args.no_env_token,
+                    token_file=args.token_file,
+                    save=args.save_token,
+                )
                 continue
 
             if not results:
@@ -172,7 +221,12 @@ def run(argv: Optional[list[str]] = None) -> int:
                 res = logic.collect_results(token, name, data, include_reviewer, time_range)
                 if res == api.TokenExpired:
                     print("Token expired, please enter a new one.")
-                    token = cli.prompt_token()
+                    token = cli.prompt_token(
+                        provided_token=args.token,
+                        allow_env=not args.no_env_token,
+                        token_file=args.token_file,
+                        save=args.save_token,
+                    )
                     break
                 if res:
                     all_results.extend(res)
