@@ -90,6 +90,7 @@ def get_shared_collections(token: str) -> Union[List[dict], str, None]:
     print("Fetching shared collections...")
     all_items: List[dict] = []
     page = 1
+    seen_ids: set = set()
 
     while True:
         response = request_with_retries(
@@ -109,8 +110,17 @@ def get_shared_collections(token: str) -> Union[List[dict], str, None]:
         if not data:
             break
 
-        all_items.extend(data)
-        if len(data) < PER_PAGE:
+        # Avoid premature termination if the API ignores per_page, and avoid infinite loops
+        new_count = 0
+        for item in data:
+            item_id = item.get("id") if isinstance(item, dict) else None
+            if item_id is None or item_id not in seen_ids:
+                all_items.append(item)
+                new_count += 1
+                if item_id is not None:
+                    seen_ids.add(item_id)
+
+        if new_count == 0:
             break
         page += 1
 
@@ -159,8 +169,6 @@ def get_students_from_section(token: str, section_id: str) -> Union[dict, str, N
             if portfolio_id:
                 students[name]["portfolio_ids"].add(portfolio_id)
 
-        if len(page_students) < PER_PAGE:
-            break
         page += 1
 
     print(f"Found {len(students)} students.")
@@ -183,6 +191,7 @@ def get_feedback(token: str, portfolio_id: str, goal_id: str) -> Union[List[dict
     headers = {"accept": "*/*", "authorization": f"Bearer {token}"}
     feedback_items: List[dict] = []
     page = 1
+    seen_ids: set = set()
 
     while True:
         response = request_with_retries(
@@ -201,8 +210,16 @@ def get_feedback(token: str, portfolio_id: str, goal_id: str) -> Union[List[dict
         if not data:
             break
 
-        feedback_items.extend(data)
-        if len(data) < PER_PAGE:
+        new_count = 0
+        for item in data:
+            item_id = item.get("id") if isinstance(item, dict) else None
+            if item_id is None or item_id not in seen_ids:
+                feedback_items.append(item)
+                new_count += 1
+                if item_id is not None:
+                    seen_ids.add(item_id)
+
+        if new_count == 0:
             break
         page += 1
 

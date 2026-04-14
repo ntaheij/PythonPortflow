@@ -15,7 +15,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--token-file",
         type=str,
         default=None,
-        help=r"Path to a cached token file (optional). Defaults to %%APPDATA%%\PortflowExport\token.txt.",
+        help="Path to a cached token file (optional). Defaults to APPDATA\\PortflowExport\\token.txt.",
     )
     parser.add_argument(
         "--save-token",
